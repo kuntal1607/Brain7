@@ -52,7 +52,7 @@ function App() {
         const formData = new FormData();
         formData.append('file', files[i]);
 
-        const response = await fetch('https://brain7-backend.onrender.com/agent/process', {
+        const response = await fetch('https://vercel.com/kuntal1/brain7-a3lp', {
           method: 'POST',
           body: formData,
         });
