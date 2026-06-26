@@ -52,7 +52,8 @@ function App() {
         const formData = new FormData();
         formData.append('file', files[i]);
 
-        const response = await fetch('https://vercel.com/kuntal1/brain7-a3lp', {
+       
+        const response = await fetch('https://brain7.onrender.com/agent/process', {
           method: 'POST',
           body: formData,
         });
@@ -76,8 +77,8 @@ function App() {
       setFiles([]);
 
     } catch (error) {
-      setSummary("API Pipeline Disconnected: Please ensure your FastAPI server is running on port 8000.");
-      setLogs(["Connection setup to backend failed."]);
+      setSummary(`Connection Failed: ${error.message}`);
+      setLogs([`Pipeline error: Unable to communicate with production server.`]);
     } finally {
       setLoading(false);
     }
