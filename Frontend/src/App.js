@@ -52,7 +52,7 @@ function App() {
         const formData = new FormData();
         formData.append('file', files[i]);
 
-        const response = await fetch('http://localhost:8000/agent/process', {
+        const response = await fetch('https://brain7-backend.onrender.com/agent/process', {
           method: 'POST',
           body: formData,
         });

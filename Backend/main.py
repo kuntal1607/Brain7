@@ -32,9 +32,7 @@ MODEL_NAME = "gemini-2.5-flash-lite"
 execution_logs: List[str] = []
 extracted_tasks: List[Dict[str, Any]] = []
 
-# --- AGENTIC TOOLS ---
 def schedule_task(task_name: str, deadline: str, priority: str) -> str:
-    """Saves a discovered milestone task straight into local in-memory states."""
     task_item = {
         "title": task_name,
         "deadline": deadline,
@@ -47,7 +45,6 @@ def schedule_task(task_name: str, deadline: str, priority: str) -> str:
     return log_msg
 
 def autonomous_drafting(task_name: str, generated_content: str) -> str:
-    """Drafts study outlines or initial execution approaches for high-priority items."""
     log_msg = f"[AGENT ACTION] Execution Engine complete: Generated full strategy layout for '{task_name}'."
     execution_logs.append(log_msg)
     return log_msg
@@ -56,17 +53,17 @@ def autonomous_drafting(task_name: str, generated_content: str) -> str:
 async def process_document(file: UploadFile = File(...)):
     global execution_logs, extracted_tasks
     
+    previous_tasks_count = len(extracted_tasks)
     
-    execution_logs = []
-    extracted_tasks = []
-    
+    if len(execution_logs) > 20:
+        execution_logs = execution_logs[-20:]
+        
     print(f"⚡ Brain7 Core Processing Engine triggered for file: {file.filename}")
     
     try:
         content = await file.read()
         text = ""
 
-        # Router parsing architecture
         if file.filename.lower().endswith(".pdf"):
             pdf = PdfReader(io.BytesIO(content))
             text = " ".join([page.extract_text() or "" for page in pdf.pages])
@@ -88,6 +85,7 @@ async def process_document(file: UploadFile = File(...)):
             "Execution Instructions:\n"
             "1. Extract every assignment, milestone, lab report deadline, exam date, or project milestone.\n"
             "2. Execute the 'schedule_task' tool for EACH item found to save it.\n"
+            "   CRITICAL DATE SPECIFICATION: For the 'deadline' property, always pass a clean format like 'YYYY-MM-DD' or 'Month DD' (e.g., 'June 26') if discernible so the UI algorithm can order it correctly.\n"
             "3. Identify the highest priority or nearest chronological objective and call 'autonomous_drafting' to construct an execution blueprint.\n"
             "4. Return a highly professional text summary outlining your agent actions and key insights."
         )
@@ -102,9 +100,11 @@ async def process_document(file: UploadFile = File(...)):
                 )
             )
             
+            newly_discovered_tasks = extracted_tasks[previous_tasks_count:]
+            
             return {
                 "summary": response.text,
-                "tasks": extracted_tasks,
+                "tasks": newly_discovered_tasks,
                 "logs": execution_logs
             }
         except Exception as ai_err:
