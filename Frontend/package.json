@@ -9,7 +9,12 @@
     "react-scripts": "5.0.1"
   },
   "scripts": {
-  "start": "react-scripts start",
-  "build": "CI=false react-scripts build"
-}
+    "start": "react-scripts start",
+    "build": "CI=false react-scripts build"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.5.2",
+    "postcss": "^8.5.15",
+    "tailwindcss": "^4.3.1"
+  }
 }
