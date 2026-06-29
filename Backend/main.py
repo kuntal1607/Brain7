@@ -33,6 +33,7 @@ execution_logs: List[str] = []
 extracted_tasks: List[Dict[str, Any]] = []
 
 def schedule_task(task_name: str, deadline: str, priority: str, link: Optional[str] = None) -> str:
+    time.sleep(1)
     task_item = {
         "title": task_name,
         "deadline": deadline,
