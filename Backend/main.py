@@ -33,7 +33,6 @@ execution_logs: List[str] = []
 extracted_tasks: List[Dict[str, Any]] = []
 
 def schedule_task(task_name: str, deadline: str, priority: str, link: Optional[str] = None) -> str:
-    time.sleep(1)
     task_item = {
         "title": task_name,
         "deadline": deadline,
@@ -103,21 +102,17 @@ async def process_document(file: UploadFile = File(...)):
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     tools=[schedule_task, autonomous_drafting],
-                    temperature=0.1,
-                    automatic_function_calling_config=types.AutomaticFunctionCallingConfig(
-                        disable=False
-                    )
+                    automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=False)
                 )
             )
             
             newly_discovered_tasks = extracted_tasks[previous_tasks_count:]
             
             return {
-                "summary": response.text if response.text else "Tasks extracted successfully.",
+                "summary": response.text,
                 "tasks": newly_discovered_tasks,
                 "logs": execution_logs
             }
-        
         except Exception as ai_err:
             if "429" in str(ai_err):
                 return {
