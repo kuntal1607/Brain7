@@ -1,6 +1,7 @@
 import os
 import io
-import time
+import json
+import re
 import uvicorn
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,7 +11,7 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 app = FastAPI()
 
@@ -32,36 +33,15 @@ MODEL_NAME = "gemini-2.5-flash-lite"
 execution_logs: List[str] = []
 extracted_tasks: List[Dict[str, Any]] = []
 
-def schedule_task(task_name: str, deadline: str, priority: str, link: Optional[str] = None) -> str:
-    task_item = {
-        "title": task_name,
-        "deadline": deadline,
-        "priority": priority.upper() if priority else "MEDIUM",
-        "status": "Ready",
-        "link": link if link else None
-    }
-    extracted_tasks.append(task_item)
-    log_msg = f"[AGENT ACTION] Successfully isolated and indexed task: '{task_name}' (Due: {deadline})"
-    if link:
-        log_msg += f" | Link: {link}"
-    execution_logs.append(log_msg)
-    return log_msg
-
-def autonomous_drafting(task_name: str, generated_content: str) -> str:
-    log_msg = f"[AGENT ACTION] Execution Engine complete: Generated full strategy layout for '{task_name}'."
-    execution_logs.append(log_msg)
-    return log_msg
-
 @app.post("/agent/process")
 async def process_document(file: UploadFile = File(...)):
     global execution_logs, extracted_tasks
-    
-    previous_tasks_count = len(extracted_tasks)
     
     if len(execution_logs) > 20:
         execution_logs = execution_logs[-20:]
         
     print(f"⚡ Brain7 Core Processing Engine triggered for file: {file.filename}")
+    execution_logs.append(f"[SYSTEM] Initialized secure processing for: {file.filename}")
     
     try:
         content = await file.read()
@@ -85,35 +65,63 @@ async def process_document(file: UploadFile = File(...)):
 
         prompt = (
             f"Analyze the following document corpus completely:\n\n{text[:6000]}\n\n"
-            "Execution Instructions:\n"
-            "1. Extract every assignment, milestone, utility bill payment, lab report deadline, exam date, or project milestone.\n"
-            "2. Execute the 'schedule_task' tool for EACH item found to save it.\n"
-            "   CRITICAL DATE SPECIFICATION: For the 'deadline' property, always pass a clean format like 'YYYY-MM-DD' or 'Month DD' (e.g., 'June 26') if discernible so the UI algorithm can order it correctly.\n"
-            "3. FOR UTILITY/ELECTRICITY BILLS: Scan the document corpus for dynamic online billing payment urls. If no specific payment link is found within the text, you must provide a general fallback portal utility URL (e.g., https://www.amazon.in/bills or a major national payment desk link) where bill settlement occurs online.\n"
-            "4. FOR SCHOOL, COLLEGE, OR ACADEMIC PROJECTS: Automatically generate a helpful reference research search query link targeting that specific project domain assignment (e.g., 'https://www.google.com/search?q=how+to+build+' appended with relevant search terms of that specific assignment name) so that users can open it to read documentation details instantly.\n"
-            "5. Pass this URL string into the 'link' parameter inside the 'schedule_task' tool invocation. If an extracted task does not involve a payment bill or technical/academic project, leave the parameter blank.\n"
-            "6. Identify the highest priority or nearest chronological objective and call 'autonomous_drafting' to construct an execution blueprint.\n"
-            "7. Return a highly professional text summary outlining your agent actions and key insights."
+            "You are a strict JSON generator. Your goal is to analyze the document text and return a valid JSON object matching the specifications below.\n\n"
+            "Instructions:\n"
+            "1. Identify all tasks, utility bill payments, school/college project milestones, or exam deadlines.\n"
+            "2. For each milestone, provide a 'title', a clean 'deadline' format (like YYYY-MM-DD or Month DD), and a 'priority' (HIGH, MEDIUM, or LOW).\n"
+            "3. FOR UTILITY/ELECTRICITY BILLS: Scan the text for online payment URLs. If no specific payment link is found, generate a general utility fallback portal link (e.g., https://www.amazon.in/bills or a major national payment desk link) where the user can settle that bill online.\n"
+            "4. FOR SCHOOL, COLLEGE, OR ACADEMIC PROJECTS: Automatically generate a helpful reference search query link targeting that specific project topic (e.g., 'https://www.google.com/search?q=how+to+build+' appended with relevant search terms for that assignment).\n"
+            "5. If a task does not involve a payment bill or an academic project, set the 'link' property to null.\n"
+            "6. Provide a concise brief summary of the items extracted.\n\n"
+            "Your output must be a single JSON object containing a 'summary' string and a 'tasks' array. Do not wrap it in markdown code blocks or add extra conversational text. Follow this schema exactly:\n"
+            "{\n"
+            "  \"summary\": \"Brief overview of the items extracted.\",\n"
+            "  \"tasks\": [\n"
+            "    {\"title\": \"Task Name\", \"deadline\": \"June 26\", \"priority\": \"HIGH\", \"link\": \"https://...\"},\n"
+            "    {\"title\": \"Standard Task\", \"deadline\": \"2026-07-01\", \"priority\": \"MEDIUM\", \"link\": null}\n"
+            "  ]\n"
+            "}"
         )
+        
+        execution_logs.append("[AGENT SYSTEM] Querying Gemini model for structured JSON generation...")
         
         try:
             response = client.models.generate_content(
                 model=MODEL_NAME,
                 contents=prompt,
                 config=types.GenerateContentConfig(
-                    tools=[schedule_task, autonomous_drafting],
-                    temperature=0.1,
-                    automatic_function_calling=types.AutomaticFunctionCallingConfig(
-                        disable=False
-                    )
+                    temperature=0.1
                 )
             )
             
-            newly_discovered_tasks = extracted_tasks[previous_tasks_count:]
+            raw_text = response.text.strip()
+            
+            if raw_text.startswith("```json"):
+                raw_text = raw_text.split("```json", 1)[1]
+            if raw_text.endswith("```"):
+                raw_text = raw_text.rsplit("```", 1)[0]
+            raw_text = raw_text.strip()
+            
+            parsed_data = json.loads(raw_text)
+            
+            ai_summary = parsed_data.get("summary", "Tasks extracted successfully.")
+            ai_tasks = parsed_data.get("tasks", [])
+            
+            for task in ai_tasks:
+                task["status"] = "Ready"
+                if "link" not in task:
+                    task["link"] = None
+                    
+                log_msg = f"[AGENT ACTION] Extracted task: '{task.get('title')}' (Due: {task.get('deadline')})"
+                if task.get("link"):
+                    log_msg += f" | Generated Link: {task.get('link')}"
+                execution_logs.append(log_msg)
+                
+                extracted_tasks.append(task)
             
             return {
-                "summary": response.text if response.text else "Tasks extracted successfully.",
-                "tasks": newly_discovered_tasks,
+                "summary": ai_summary,
+                "tasks": ai_tasks,
                 "logs": execution_logs
             }
             
