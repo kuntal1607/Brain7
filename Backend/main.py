@@ -104,7 +104,7 @@ async def process_document(file: UploadFile = File(...)):
                     tools=[schedule_task, autonomous_drafting],
                     temperature=0.1,
                     automatic_function_calling_config=types.AutomaticFunctionCallingConfig(
-                        max_allowed_steps=5
+                        disable=False
                     )
                 )
             )
