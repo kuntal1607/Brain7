@@ -102,17 +102,21 @@ async def process_document(file: UploadFile = File(...)):
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     tools=[schedule_task, autonomous_drafting],
-                    automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=False)
+                    temperature=0.1,
+                    automatic_function_calling_config=types.AutomaticFunctionCallingConfig(
+                        max_allowed_steps=5
+                    )
                 )
             )
             
             newly_discovered_tasks = extracted_tasks[previous_tasks_count:]
             
             return {
-                "summary": response.text,
+                "summary": response.text if response.text else "Tasks extracted successfully.",
                 "tasks": newly_discovered_tasks,
                 "logs": execution_logs
             }
+        
         except Exception as ai_err:
             if "429" in str(ai_err):
                 return {
